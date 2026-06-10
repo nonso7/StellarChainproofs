@@ -1,0 +1,76 @@
+name: ChainProof Security Audit
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "contracts/**/*.sol"
+      - "src/**/*.sol"
+  pull_request:
+    branches: [main]
+    paths:
+      - "contracts/**/*.sol"
+      - "src/**/*.sol"
+
+permissions:
+  contents: read
+  pull-requests: write        # needed to post PR comments
+  issues: write
+  security-events: write      # optional: upload SARIF to GitHub Security tab
+
+jobs:
+  audit:
+    name: Smart Contract Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Python (for Slither)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Slither
+        run: pip install slither-analyzer
+        continue-on-error: true   # Don't fail if pip install has issues
+
+      - name: Install ChainProof
+        run: npm install -g @chainproof/cli
+
+      - name: Run ChainProof Audit
+        id: audit
+        uses: ./packages/github-action    # Use local action definition
+        with:
+          targets: "contracts/"
+          min-severity: "high"
+          use-slither: "true"
+          upload-report: "true"
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Audit Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chainproof-audit-report
+          path: chainproof-reports/
+          retention-days: 30
+
+      - name: Print Summary
+        if: always()
+        run: |
+          echo "## ChainProof Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Critical: ${{ steps.audit.outputs.critical-count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- High: ${{ steps.audit.outputs.high-count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Total: ${{ steps.audit.outputs.total-count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Full report: [Download artifact]()" >> $GITHUB_STEP_SUMMARY

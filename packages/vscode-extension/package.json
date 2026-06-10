@@ -1,0 +1,90 @@
+{
+  "name": "chainproof-vscode",
+  "displayName": "ChainProof — Smart Contract Auditor",
+  "description": "Real-time vulnerability scanning and gas optimization for Solidity",
+  "version": "0.1.0",
+  "publisher": "chainproof",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Linters", "Other"],
+  "keywords": ["solidity", "ethereum", "security", "audit", "web3", "smart-contracts"],
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:solidity"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "chainproof.scanCurrentFile",
+        "title": "ChainProof: Scan Current File"
+      },
+      {
+        "command": "chainproof.scanWorkspace",
+        "title": "ChainProof: Scan Entire Workspace"
+      },
+      {
+        "command": "chainproof.generateReport",
+        "title": "ChainProof: Generate Audit Report"
+      },
+      {
+        "command": "chainproof.clearDiagnostics",
+        "title": "ChainProof: Clear Diagnostics"
+      }
+    ],
+    "configuration": {
+      "title": "ChainProof",
+      "properties": {
+        "chainproof.enableOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan Solidity files on save"
+        },
+        "chainproof.useSlither": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use Slither for additional analysis (requires pip install slither-analyzer)"
+        },
+        "chainproof.useLLM": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use AI to enhance finding explanations (requires API key)"
+        },
+        "chainproof.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key for LLM enhancement (or set ANTHROPIC_API_KEY env var)"
+        },
+        "chainproof.minSeverity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info"],
+          "default": "low",
+          "description": "Minimum severity level to display"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "chainproof.scanCurrentFile",
+          "when": "resourceExtname == .sol",
+          "group": "chainproof"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "@chainproof/core": "*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "@vscode/vsce": "^2.24.0"
+  }
+}

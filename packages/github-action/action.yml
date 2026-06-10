@@ -1,0 +1,57 @@
+name: "ChainProof Smart Contract Audit"
+description: "Scan Solidity smart contracts for vulnerabilities and gas issues. Fails CI on critical/high findings."
+author: "ChainProof"
+
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  targets:
+    description: "Space-separated paths to .sol files or directories to scan"
+    required: false
+    default: "contracts/"
+
+  min-severity:
+    description: "Minimum severity to fail CI on: critical|high|medium|low"
+    required: false
+    default: "high"
+
+  use-slither:
+    description: "Run Slither if available (true/false)"
+    required: false
+    default: "true"
+
+  api-key:
+    description: "Anthropic API key for LLM-enhanced explanations"
+    required: false
+    default: ""
+
+  report-format:
+    description: "Report format for PR comments: markdown|json"
+    required: false
+    default: "markdown"
+
+  upload-report:
+    description: "Upload audit report as a GitHub Actions artifact (true/false)"
+    required: false
+    default: "true"
+
+  fail-on-gas:
+    description: "Fail CI if gas optimization hints exceed threshold"
+    required: false
+    default: "false"
+
+outputs:
+  critical-count:
+    description: "Number of critical severity findings"
+  high-count:
+    description: "Number of high severity findings"
+  total-count:
+    description: "Total number of findings"
+  report-path:
+    description: "Path to the generated audit report"
+
+runs:
+  using: "node20"
+  main: "dist/action.js"
