@@ -25,6 +25,12 @@ export interface Finding {
   swcId?: string;
   /** Whether this was enhanced/explained by LLM */
   llmEnhanced?: boolean;
+  /** File where the vulnerable code is defined */
+  definedIn?: string;
+  /** File of the contract that inherits the issue */
+  inheritedBy?: string;
+  /** Resolved import chain from inheriting file to definition file */
+  importPath?: string[];
 }
 
 // ─── Gas optimization hint ────────────────────────────────────────────────────
@@ -102,8 +108,19 @@ export interface ScanConfig {
   useMetrics: boolean;
   /** Anthropic API key */
   apiKey?: string;
+
+  /**
+   * Select LLM provider (e.g. "anthropic", "openai"). Defaults to "anthropic".
+   */
+  llmProvider?: string;
+  /** Provider/model identifier (provider-specific). */
+  llmModel?: string;
+  /** Provider API key (alternative to apiKey). */
+  llmApiKey?: string;
+
   /** Minimum severity to report */
   minSeverity?: Severity;
   /** Output format */
   outputFormat?: "json" | "markdown" | "table";
 }
+

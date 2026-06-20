@@ -12,3 +12,10 @@ export type {
   ContractMetrics,
   HighComplexityFunction,
 } from "./types";
+export type {
+  ImportGraph,
+  ParsedSolidityFile,
+  ContractInfo,
+  MergedMember,
+  MergedContractView,
+} from "./ast/import-graph";
