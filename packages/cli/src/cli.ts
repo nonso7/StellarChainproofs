@@ -45,6 +45,7 @@ program
   .description("Scan one or more .sol files or directories")
   .option("--no-slither", "Skip Slither analysis even if installed")
   .option("--no-llm", "Skip LLM enhancement of findings")
+  .option("--no-metrics", "Skip complexity/maintainability metric computation")
   .option(
     "--api-key <key>",
     "LLM API key (kept for backward compatibility; for Anthropic set ANTHROPIC_API_KEY)"
@@ -75,6 +76,7 @@ program
       opts: {
         slither: boolean;
         llm: boolean;
+        metrics: boolean;
         apiKey?: string;
         llmProvider?: string;
         llmModel?: string;
@@ -88,6 +90,7 @@ program
 
       const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
       const useLLM = opts.llm && !!apiKey;
+      const useMetrics = opts.metrics;
 
       const llmProvider = opts.llmProvider ?? "anthropic";
       const llmModel = opts.llmModel;
@@ -118,6 +121,7 @@ program
           `  Targets  : ${targets.join(", ")}\n` +
           `  Slither  : ${useSlither ? chalk.green("enabled") : chalk.gray("disabled")}\n` +
           `  LLM      : ${useLLM ? chalk.green("enabled") : chalk.gray("disabled")}\n` +
+          `  Metrics  : ${useMetrics ? chalk.green("enabled") : chalk.gray("disabled")}\n` +
           `  Severity : ${opts.minSeverity}+\n`
         )
       );
@@ -128,6 +132,7 @@ program
         targets,
         useSlither,
         useLLM,
+        useMetrics,
         apiKey,
         minSeverity: opts.minSeverity as ScanConfig["minSeverity"],
         outputFormat: opts.format as ScanConfig["outputFormat"],
@@ -198,14 +203,16 @@ program
   .command("check <targets...>")
   .description("Fast pass/fail check — exits 1 if critical/high issues found")
   .option("--no-slither", "Skip Slither")
+  .option("--no-metrics", "Skip complexity/maintainability metric computation")
   .option("--api-key <key>", "Anthropic API key")
-  .action(async (targets: string[], opts: { slither: boolean; apiKey?: string }) => {
+  .action(async (targets: string[], opts: { slither: boolean; metrics: boolean; apiKey?: string }) => {
     const spinner = ora("Running security check...").start();
 
     const config: ScanConfig = {
       targets,
       useSlither: opts.slither && isSlitherAvailable(),
       useLLM: false,
+      useMetrics: opts.metrics,
       minSeverity: "high",
     };
 

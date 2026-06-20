@@ -2,7 +2,6 @@ import { visit, getSnippet } from "../ast/parser";
 import type { MergedMember } from "../ast/import-graph";
 import type { Finding } from "../types";
 import type { ASTNode } from "../ast/parser";
-import { applyFindingContext, type RuleOptions } from "./rule-context";
 
 /**
  * SWC-115: Authorization through tx.origin

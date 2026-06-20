@@ -13,12 +13,14 @@ import { detectUnprotectedUpgrade } from "./rules/swc116-unprotected-upgrade";
 import { detectIntegerOverflow, detectUncheckedReturn } from "./rules/swc101-overflow";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
+import { analyzeContract } from "./metrics/complexity";
 import type {
   ScanConfig,
   ScanResult,
   FileScanResult,
   Finding,
   Severity,
+  ContractMetrics,
 } from "./types";
 
 const VERSION = "0.1.0";
@@ -164,97 +166,80 @@ async function scanFileLegacy(
   return { file: filePath, findings, gasHints, slitherRan };
 }
 
-async function scanWithImportGraph(
-  files: string[],
-  config: ScanConfig
-): Promise<FileScanResult[]> {
-  const graph = buildImportGraph(files);
-  const views = buildMergedContractViews(graph);
-  const findingsByFile = new Map<string, Finding[]>();
-  const gasByFile = new Map<string, ReturnType<typeof detectGasIssues>>();
-  const slitherByFile = new Map<string, boolean>();
-  const parseErrors = new Map<string, string>();
+/**
+ * Extract high-complexity functions as info-severity findings.
+ */
+function generateComplexityFindings(
+  metrics: ContractMetrics[],
+  source: string,
+  filePath: string
+): Finding[] {
+  const findings: Finding[] = [];
 
-  for (const filePath of files) {
-    findingsByFile.set(path.resolve(filePath), []);
-    gasByFile.set(path.resolve(filePath), []);
-    slitherByFile.set(path.resolve(filePath), false);
-  }
-
-  for (const warning of graph.warnings) {
-    console.warn(`[ChainProof] ${warning}`);
-  }
-
-  for (const parsed of graph.files.values()) {
-    let findings = [
-      ...detectIntegerOverflow(parsed.ast, parsed.source, parsed.absolutePath),
-      ...detectUncheckedReturn(parsed.ast, parsed.source, parsed.absolutePath),
-    ];
-
-    for (const view of views.filter((v) => v.file === parsed.absolutePath)) {
-      findings.push(...runRulesOnView(view, config));
-    }
-
-    findings = dedupeFindings(findings);
-
-    const slitherRan = config.useSlither && isSlitherAvailable();
-    if (slitherRan) {
-      const slitherFindings = runSlither(parsed.filePath);
-      const existingKeys = new Set(findings.map((f) => findingKey(f)));
-      for (const sf of slitherFindings) {
-        if (!existingKeys.has(findingKey(sf))) {
-          findings.push(sf);
+  for (const m of metrics) {
+    for (const fn of m.highComplexityFunctions) {
+      // Find approximate line in source for the function name
+      const lines = source.split("\n");
+      let line = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(`function ${fn.name}`) || 
+            lines[i].includes(`function ${fn.name}(`)) {
+          line = i + 1;
+          break;
         }
       }
-    }
-    slitherByFile.set(parsed.absolutePath, slitherRan);
 
-    if (config.minSeverity) {
-      const minRank = SEVERITY_RANK[config.minSeverity];
-      findings = findings.filter((f) => SEVERITY_RANK[f.severity] >= minRank);
-    }
-
-    if (config.useLLM && config.apiKey && findings.length > 0) {
-      findings = await enhanceFindingsWithLLM(findings, parsed.source, config.apiKey);
-    }
-
-    findingsByFile.set(parsed.absolutePath, findings);
-    gasByFile.set(parsed.absolutePath, detectGasIssues(parsed.ast, parsed.source, parsed.absolutePath));
-  }
-
-  for (const filePath of files) {
-    const absolutePath = path.resolve(filePath);
-    if (!graph.files.has(absolutePath) && !parseErrors.has(absolutePath)) {
-      parseErrors.set(absolutePath, `Could not parse or read file: ${filePath}`);
+      findings.push({
+        id: "CP-METRICS-CC",
+        title: `High cyclomatic complexity in ${fn.name}`,
+        description:
+          `Function "${fn.name}" has a cyclomatic complexity of ${fn.cc} (>10). ` +
+          `High complexity makes code harder to audit and more prone to hidden vulnerabilities. ` +
+          `Consider breaking this function into smaller, focused sub-functions.`,
+        recommendation:
+          `Refactor "${fn.name}" to reduce cyclomatic complexity below 10. ` +
+          `Extract nested conditionals into named helper functions with clear contracts.`,
+        severity: "info",
+        file: filePath,
+        line,
+      });
     }
   }
 
-  return files.map((filePath) => {
-    const absolutePath = path.resolve(filePath);
-    return {
-      file: filePath,
-      findings: findingsByFile.get(absolutePath) ?? [],
-      gasHints: gasByFile.get(absolutePath) ?? [],
-      slitherRan: slitherByFile.get(absolutePath) ?? false,
-      parseError: parseErrors.get(absolutePath),
-    };
-  });
+  return findings;
 }
 
-function dedupeFindings(findings: Finding[]): Finding[] {
-  const seen = new Set<string>();
-  const result: Finding[] = [];
-  for (const finding of findings) {
-    const key = findingKey(finding);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(finding);
-  }
-  return result;
-}
+/**
+ * Generate ContractMetrics for a file's parsed AST.
+ */
+function computeMetricsForFile(
+  filePath: string
+): ContractMetrics[] {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const { ast } = parseSolidity(source, filePath);
+  if (!ast) return [];
 
-function findingKey(finding: Finding): string {
-  return `${finding.id}-${finding.file}-${finding.definedIn ?? ""}-${finding.line}-${finding.title}`;
+  const analysisResults = analyzeContract(ast, source, filePath);
+
+  return analysisResults.map((ar) => ({
+    contract: ar.contractName,
+    file: ar.filePath,
+    linesOfCode: ar.linesOfCode,
+    functionCount: ar.totalFunctions,
+    inheritanceDepth: ar.inheritanceDepth,
+    avgCyclomaticComplexity:
+      ar.functionMetrics.length > 0
+        ? Math.round(
+            (ar.functionMetrics.reduce((sum, fm) => sum + fm.cyclomaticComplexity, 0) /
+              ar.functionMetrics.length) * 100
+          ) / 100
+        : 0,
+    highComplexityFunctions: ar.highComplexityFunctions,
+    externalCallsPerFunction: ar.externalCallsPerFunction,
+    stateVariableCount: ar.stateVariableCount,
+    visibilityDistribution: ar.visibilityDistribution,
+    riskScore: ar.riskScore,
+  }));
 }
 
 export async function scan(config: ScanConfig): Promise<ScanResult> {
@@ -278,6 +263,36 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
       fileResults = await scanWithImportGraph(files, config);
     } else {
       fileResults = await Promise.all(files.map((f) => scanFileLegacy(f, config)));
+    }
+  }
+
+  // ── Compute complexity metrics ─────────────────────────────────────────────
+  let allMetrics: ContractMetrics[] = [];
+  const complexityFindings: Finding[] = [];
+
+  if (config.useMetrics) {
+    for (const filePath of files) {
+      const metrics = computeMetricsForFile(filePath);
+      allMetrics.push(...metrics);
+
+      // Generate info-severity findings for high complexity functions
+      if (metrics.length > 0) {
+        try {
+          const source = fs.readFileSync(filePath, "utf-8");
+          const cFindings = generateComplexityFindings(metrics, source, filePath);
+          complexityFindings.push(...cFindings);
+        } catch {
+          // Skip if file can't be read
+        }
+      }
+    }
+  }
+
+  // Inject complexity findings into the first file that has no parse error
+  if (complexityFindings.length > 0 && fileResults.length > 0) {
+    const targetFile = fileResults.find((f) => !f.parseError);
+    if (targetFile) {
+      targetFile.findings.push(...complexityFindings);
     }
   }
 
@@ -305,5 +320,6 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
     timestamp: new Date().toISOString(),
     files: fileResults,
     summary,
+    metrics: allMetrics.length > 0 ? allMetrics : undefined,
   };
 }

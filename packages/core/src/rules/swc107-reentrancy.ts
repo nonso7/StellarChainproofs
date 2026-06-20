@@ -1,7 +1,6 @@
 import { visit, getSnippet } from "../ast/parser";
 import type { Finding } from "../types";
 import type { ASTNode } from "../ast/parser";
-import { applyFindingContext, type RuleOptions } from "./rule-context";
 
 /**
  * SWC-107: Reentrancy

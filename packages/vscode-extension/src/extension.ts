@@ -159,6 +159,7 @@ async function scanDocument(document: vscode.TextDocument) {
     targets: [document.fileName],
     useSlither: config.get("useSlither") ?? true,
     useLLM: (config.get("useLLM") ?? false) && !!apiKey,
+    useMetrics: config.get("useMetrics") ?? true,
     apiKey,
     minSeverity: config.get("minSeverity") ?? "low",
   };
@@ -322,6 +323,7 @@ async function generateReport() {
         targets: [workspacePath],
         useSlither: config.get("useSlither") ?? true,
         useLLM: (config.get("useLLM") ?? false) && !!apiKey,
+        useMetrics: config.get("useMetrics") ?? true,
         apiKey,
         minSeverity: "low",
       };
