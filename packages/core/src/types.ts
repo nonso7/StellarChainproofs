@@ -25,6 +25,12 @@ export interface Finding {
   swcId?: string;
   /** Whether this was enhanced/explained by LLM */
   llmEnhanced?: boolean;
+  /** File where the vulnerable code is defined */
+  definedIn?: string;
+  /** File of the contract that inherits the issue */
+  inheritedBy?: string;
+  /** Resolved import chain from inheriting file to definition file */
+  importPath?: string[];
 }
 
 // ─── Gas optimization hint ────────────────────────────────────────────────────
@@ -48,6 +54,27 @@ export interface FileScanResult {
   parseError?: string;
 }
 
+// ─── Complexity / Maintainability Metrics ──────────────────────────────────────
+
+export interface HighComplexityFunction {
+  name: string;
+  cc: number;
+}
+
+export interface ContractMetrics {
+  contract: string;
+  file: string;
+  linesOfCode: number;
+  functionCount: number;
+  inheritanceDepth: number;
+  avgCyclomaticComplexity: number;
+  highComplexityFunctions: Array<{ name: string; cc: number }>;
+  externalCallsPerFunction: Record<string, number>;
+  stateVariableCount: number;
+  visibilityDistribution: Record<string, number>;
+  riskScore: number; // 0-100 composite
+}
+
 // ─── Full scan result for a project ──────────────────────────────────────────
 
 export interface ScanResult {
@@ -64,6 +91,8 @@ export interface ScanResult {
     gas: number;
     total: number;
   };
+  /** Complexity and maintainability metrics per contract */
+  metrics?: ContractMetrics[];
 }
 
 // ─── Plugin API ──────────────────────────────────────────────────────────────
@@ -99,8 +128,20 @@ export interface ScanConfig {
   useSlither: boolean;
   /** Send findings to LLM for explanation */
   useLLM: boolean;
+  /** Compute complexity metrics */
+  useMetrics: boolean;
   /** Anthropic API key */
   apiKey?: string;
+
+  /**
+   * Select LLM provider (e.g. "anthropic", "openai"). Defaults to "anthropic".
+   */
+  llmProvider?: string;
+  /** Provider/model identifier (provider-specific). */
+  llmModel?: string;
+  /** Provider API key (alternative to apiKey). */
+  llmApiKey?: string;
+
   /** Minimum severity to report */
   minSeverity?: Severity;
   /** Output format */
@@ -108,3 +149,4 @@ export interface ScanConfig {
   /** Array of plugins to load */
   plugins?: ChainProofPlugin[];
 }
+

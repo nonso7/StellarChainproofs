@@ -18,3 +18,10 @@ export type {
   PluginRule,
   ASTNode,
 } from "./types";
+export type {
+  ImportGraph,
+  ParsedSolidityFile,
+  ContractInfo,
+  MergedMember,
+  MergedContractView,
+} from "./ast/import-graph";
